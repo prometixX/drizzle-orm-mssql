@@ -1,9 +1,9 @@
 import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
 import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
-import type { AnyPgTable } from '~/pg-core/table';
 import type { SQL } from '~/sql';
+import type { AnySQLiteTable } from '~/sqlite-core/table';
 import type { Assume, Equal, Simplify } from '~/utils';
-import { PgColumn, PgColumnBuilder } from './common';
+import { SQLiteColumn, SQLiteColumnBuilder } from './common';
 
 export type ConvertCustomConfig<TName extends string, T extends Partial<CustomTypeValues>> = Simplify<{
 	name: TName;
@@ -14,28 +14,28 @@ export type ConvertCustomConfig<TName extends string, T extends Partial<CustomTy
 	hasDefault: T['default'] extends true ? true : false;
 }>;
 
-export interface PgCustomColumnInnerConfig {
+export interface SQLiteCustomColumnInnerConfig {
 	customTypeValues: CustomTypeValues;
 }
 
-export interface PgCustomColumnBuilderHKT extends ColumnBuilderHKTBase {
-	_type: PgCustomColumnBuilder<Assume<this['config'], ColumnBuilderBaseConfig>>;
-	_columnHKT: PgCustomColumnHKT;
+export interface SQLiteCustomColumnBuilderHKT extends ColumnBuilderHKTBase {
+	_type: SQLiteCustomColumnBuilder<Assume<this['config'], ColumnBuilderBaseConfig>>;
+	_columnHKT: SQLiteCustomColumnHKT;
 }
 
-export interface PgCustomColumnHKT extends ColumnHKTBase {
-	_type: PgCustomColumn<Assume<this['config'], ColumnBaseConfig>>;
+export interface SQLiteCustomColumnHKT extends ColumnHKTBase {
+	_type: SQLiteCustomColumn<Assume<this['config'], ColumnBaseConfig>>;
 }
 
-export class PgCustomColumnBuilder<T extends ColumnBuilderBaseConfig> extends PgColumnBuilder<
-	PgCustomColumnBuilderHKT,
+export class SQLiteCustomColumnBuilder<T extends ColumnBuilderBaseConfig> extends SQLiteColumnBuilder<
+	SQLiteCustomColumnBuilderHKT,
 	T,
 	{
 		fieldConfig: CustomTypeValues['config'];
 		customTypeParams: CustomTypeParams<any>;
 	},
 	{
-		pgColumnBuilderBrand: 'PgCustomColumnBuilderBrand';
+		sqliteColumnBuilderBrand: 'SQLiteCustomColumnBuilderBrand';
 	}
 > {
 	constructor(
@@ -50,23 +50,23 @@ export class PgCustomColumnBuilder<T extends ColumnBuilderBaseConfig> extends Pg
 
 	/** @internal */
 	build<TTableName extends string>(
-		table: AnyPgTable<{ name: TTableName }>,
-	): PgCustomColumn<MakeColumnConfig<T, TTableName>> {
-		return new PgCustomColumn<MakeColumnConfig<T, TTableName>>(
+		table: AnySQLiteTable<{ name: TTableName }>,
+	): SQLiteCustomColumn<MakeColumnConfig<T, TTableName>> {
+		return new SQLiteCustomColumn<MakeColumnConfig<T, TTableName>>(
 			table,
 			this.config,
 		);
 	}
 }
 
-export class PgCustomColumn<T extends ColumnBaseConfig> extends PgColumn<PgCustomColumnHKT, T> {
+export class SQLiteCustomColumn<T extends ColumnBaseConfig> extends SQLiteColumn<SQLiteCustomColumnHKT, T> {
 	private sqlName: string;
 	private mapTo?: (value: T['data']) => T['driverParam'];
 	private mapFrom?: (value: T['driverParam']) => T['data'];
 
 	constructor(
-		table: AnyPgTable<{ name: T['tableName'] }>,
-		config: PgCustomColumnBuilder<T>['config'],
+		table: AnySQLiteTable<{ name: T['tableName'] }>,
+		config: SQLiteCustomColumnBuilder<T>['config'],
 	) {
 		super(table, config);
 		this.sqlName = config.customTypeParams.dataType(config.fieldConfig);
@@ -206,23 +206,23 @@ export interface CustomTypeParams<T extends CustomTypeValues> {
 }
 
 /**
- * Custom pg database data type generator
+ * Custom sqlite database data type generator
  */
 export function customType<T extends CustomTypeValues = CustomTypeValues>(
 	customTypeParams: CustomTypeParams<T>,
 ): Equal<T['configRequired'], true> extends true ? <TName extends string>(
 		dbName: TName,
 		fieldConfig: T['config'],
-	) => PgCustomColumnBuilder<ConvertCustomConfig<TName, T>>
+	) => SQLiteCustomColumnBuilder<ConvertCustomConfig<TName, T>>
 	: <TName extends string>(
 		dbName: TName,
 		fieldConfig?: T['config'],
-	) => PgCustomColumnBuilder<ConvertCustomConfig<TName, T>>
+	) => SQLiteCustomColumnBuilder<ConvertCustomConfig<TName, T>>
 {
 	return <TName extends string>(
 		dbName: TName,
 		fieldConfig?: T['config'],
-	): PgCustomColumnBuilder<ConvertCustomConfig<TName, T>> => {
-		return new PgCustomColumnBuilder(dbName, fieldConfig, customTypeParams);
+	): SQLiteCustomColumnBuilder<ConvertCustomConfig<TName, T>> => {
+		return new SQLiteCustomColumnBuilder(dbName, fieldConfig, customTypeParams);
 	};
 }
