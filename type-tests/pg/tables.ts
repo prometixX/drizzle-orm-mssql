@@ -1,7 +1,17 @@
-import type { Equal } from 'tests/utils';
-import { Expect } from 'tests/utils';
+import type { Equal } from 'type-tests/utils';
+import { Expect } from 'type-tests/utils';
+import { z } from 'zod';
 import { eq, gt } from '~/expressions';
-import { customType, type PgInteger, type PgSerial, type PgTableWithColumns, type PgText } from '~/pg-core';
+import {
+	bigint,
+	bigserial,
+	customType,
+	decimal,
+	type PgInteger,
+	type PgSerial,
+	type PgTableWithColumns,
+	type PgText,
+} from '~/pg-core';
 import {
 	check,
 	cidr,
@@ -62,7 +72,9 @@ export const users = pgTable(
 			.concurrently()
 			.using(sql`btree`),
 		legalAge: check('legalAge', sql`${users.age1} > 18`),
-		usersClassFK: foreignKey({ columns: [users.subClass], foreignColumns: [classes.subClass] }),
+		usersClassFK: foreignKey({ columns: [users.subClass], foreignColumns: [classes.subClass] })
+			.onUpdate('cascade')
+			.onDelete('cascade'),
 		usersClassComplexFK: foreignKey({
 			columns: [users.class, users.subClass],
 			foreignColumns: [classes.class, classes.subClass],
@@ -717,4 +729,35 @@ await db.refreshMaterializedView(newYorkers2).withNoData().concurrently();
 			typeof cities
 		>
 	>;
+}
+
+{
+	const test = pgTable('test', {
+		bigint: bigint('bigint', { mode: 'bigint' }).default(BigInt(10)),
+		bigintNumber: bigint('bigintNumber', { mode: 'number' }),
+		bigserial: bigserial('bigserial', { mode: 'bigint' }).default(BigInt(10)),
+		bigserialNumber: bigserial('bigserialNumber', { mode: 'number' }),
+		timestamp: timestamp('timestamp').default(new Date()),
+		timestamp2: timestamp('timestamp2', { mode: 'date' }).default(new Date()),
+		timestamp3: timestamp('timestamp3', { mode: undefined }).default(new Date()),
+		timestamp4: timestamp('timestamp4', { mode: 'string' }).default('2020-01-01'),
+	});
+}
+
+{
+	const test = pgTable('test', {
+		col1: decimal('col1', { precision: 10, scale: 2 }).notNull().default('10.2'),
+	});
+	Expect<Equal<{ col1: string }, InferModel<typeof test>>>;
+}
+
+{
+	const a = ['a', 'b', 'c'] as const;
+	const b = pgEnum('test', a);
+	const c = z.enum(b.enumValues);
+}
+
+{
+	const b = pgEnum('test', ['a', 'b', 'c']);
+	const c = z.enum(b.enumValues);
 }
