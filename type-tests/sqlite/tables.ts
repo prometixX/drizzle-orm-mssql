@@ -1,5 +1,5 @@
-import type { Equal } from 'tests/utils';
-import { Expect } from 'tests/utils';
+import type { Equal } from 'type-tests/utils';
+import { Expect } from 'type-tests/utils';
 import { eq, gt } from '~/expressions';
 import { sql } from '~/sql';
 import type { SQLiteInteger } from '~/sqlite-core';
@@ -231,4 +231,15 @@ Expect<
 			typeof newYorkers
 		>
 	>;
+}
+
+{
+	const test = sqliteTable('test', {
+		col1: integer('col1').default(1),
+		col2: integer('col2', { mode: 'number' }).default(1),
+		col3: integer('col3', { mode: 'timestamp' }).default(new Date()),
+		col4: integer('col4', { mode: 'timestamp_ms' }).default(new Date()),
+		// @ts-expect-error
+		col5: integer('col4', { mode: undefined }).default(new Date()),
+	});
 }

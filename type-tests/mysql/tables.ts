@@ -1,8 +1,12 @@
-import { type Equal, Expect } from 'tests/utils';
+import { type Equal, Expect } from 'type-tests/utils';
 import { eq, gt } from '~/expressions';
 import {
+	bigint,
 	check,
 	customType,
+	date,
+	datetime,
+	decimal,
 	foreignKey,
 	index,
 	int,
@@ -89,6 +93,12 @@ export const classes = mysqlTable('classes_table', {
 	class: text('class', { enum: ['A', 'C'] }),
 	subClass: text('sub_class', { enum: ['B', 'D'] }).notNull(),
 });
+
+/* export const classes2 = mysqlTable('classes_table', {
+	id: serial().primaryKey(),
+	class: text({ enum: ['A', 'C'] }).$dbName('class_db'),
+	subClass: text({ enum: ['B', 'D'] }).notNull(),
+}); */
 
 export const newYorkers = mysqlView('new_yorkers')
 	.algorithm('merge')
@@ -329,4 +339,35 @@ Expect<
 			notNull: true;
 		}, typeof t['_']['config']>
 	>;
+}
+
+{
+	const test = mysqlTable('test', {
+		bigint: bigint('bigint', { mode: 'bigint' }),
+		number: bigint('number', { mode: 'number' }),
+		date: date('date').default(new Date()),
+		date2: date('date2', { mode: 'date' }).default(new Date()),
+		date3: date('date3', { mode: 'string' }).default('2020-01-01'),
+		date4: date('date4', { mode: undefined }).default(new Date()),
+		datetime: datetime('datetime').default(new Date()),
+		datetime2: datetime('datetime2', { mode: 'date' }).default(new Date()),
+		datetime3: datetime('datetime3', { mode: 'string' }).default('2020-01-01'),
+		datetime4: datetime('datetime4', { mode: undefined }).default(new Date()),
+		timestamp: timestamp('timestamp').default(new Date()),
+		timestamp2: timestamp('timestamp2', { mode: 'date' }).default(new Date()),
+		timestamp3: timestamp('timestamp3', { mode: 'string' }).default('2020-01-01'),
+		timestamp4: timestamp('timestamp4', { mode: undefined }).default(new Date()),
+	});
+}
+
+{
+	const test = mysqlTable('test', {
+		col1: decimal('col1').default('1'),
+	});
+}
+
+{
+	const a = ['a', 'b', 'c'] as const;
+	const test1 = mysqlEnum('test', a);
+	const test2 = mysqlEnum('test', ['a', 'b', 'c']);
 }
