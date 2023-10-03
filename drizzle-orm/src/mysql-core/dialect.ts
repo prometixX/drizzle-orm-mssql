@@ -19,7 +19,8 @@ import { Subquery, SubqueryConfig } from '~/subquery.ts';
 import { getTableName, Table } from '~/table.ts';
 import { orderSelectedFields, type UpdateSet } from '~/utils.ts';
 import { View } from '~/view.ts';
-import { DrizzleError, type Name, ViewBaseConfig } from '../index.ts';
+import { DrizzleError, ViewBaseConfig } from '../index.ts';
+import type { Name, Placeholder } from '../index.ts';
 import { MySqlColumn } from './columns/common.ts';
 import type { MySqlDeleteConfig } from './query-builders/delete.ts';
 import type { MySqlInsertConfig } from './query-builders/insert.ts';
@@ -337,6 +338,71 @@ export class MySqlDialect {
 		}
 
 		return sql`${withSql}select${distinctSql} ${selection} from ${tableSql}${joinsSql}${whereSql}${groupBySql}${havingSql}${orderBySql}${limitSql}${offsetSql}${lockingClausesSql}`;
+	}
+
+	buildSelectOnlyQuery(
+		{
+			withList,
+			fields,
+			fieldsFlat,
+			orderBy,
+			groupBy,
+			limit,
+			offset,
+			distinct,
+		}: {
+			withList?: Subquery[];
+			fields: Record<string, unknown>;
+			fieldsFlat?: SelectedFieldsOrdered;
+			limit?: number | Placeholder;
+			offset?: number | Placeholder;
+			orderBy?: (MySqlColumn | SQL | SQL.Aliased)[];
+			groupBy?: (MySqlColumn | SQL | SQL.Aliased)[];
+			distinct?: boolean;
+		},
+	): SQL {
+		const fieldsList = fieldsFlat ?? orderSelectedFields<MySqlColumn>(fields);
+		for (const f of fieldsList) {
+			if (is(f.field, Column)) {
+				const tableName = getTableName(f.field.table);
+				throw new Error(
+					`You cannot reference a table: "${tableName}" for field: "${f.field.name}" without using .from() method`,
+				);
+			}
+		}
+
+		let withSql: SQL | undefined;
+		if (withList?.length) {
+			const withSqlChunks = [sql`with `];
+			for (const [i, w] of withList.entries()) {
+				withSqlChunks.push(sql`${sql.identifier(w[SubqueryConfig].alias)} as (${w[SubqueryConfig].sql})`);
+				if (i < withList.length - 1) {
+					withSqlChunks.push(sql`, `);
+				}
+			}
+			withSqlChunks.push(sql` `);
+			withSql = sql.join(withSqlChunks);
+		}
+
+		const distinctSql = distinct ? sql` distinct` : undefined;
+
+		const selection = this.buildSelection(fieldsList, { isSingleTable: true });
+
+		let orderBySql;
+		if (orderBy && orderBy.length > 0) {
+			orderBySql = sql` order by ${sql.join(orderBy, sql`, `)}`;
+		}
+
+		let groupBySql;
+		if (groupBy && groupBy.length > 0) {
+			groupBySql = sql` group by ${sql.join(groupBy, sql`, `)}`;
+		}
+
+		const limitSql = limit ? sql` limit ${limit}` : undefined;
+
+		const offsetSql = offset ? sql` offset ${offset}` : undefined;
+
+		return sql`${withSql}select${distinctSql} ${selection}${groupBySql}${orderBySql}${limitSql}${offsetSql}`;
 	}
 
 	buildSetOperationQuery({

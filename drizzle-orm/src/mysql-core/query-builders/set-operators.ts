@@ -311,7 +311,6 @@ export class MySqlSetOperatorBase<
 	private createIterator = (): ReturnType<this['prepare']>['iterator'] => {
 		const self = this;
 		return async function*(placeholderValues) {
-			console.log('placeholderValues', placeholderValues);
 			yield* self.prepare().iterator(placeholderValues);
 		};
 	};

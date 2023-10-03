@@ -100,9 +100,11 @@ export class MySqlDatabase<
 		function select<TSelection extends SelectedFields>(
 			fields: TSelection,
 		): MySqlSelectBuilder<TSelection, TPreparedQueryHKT>;
-		function select(fields?: SelectedFields): MySqlSelectBuilder<SelectedFields | undefined, TPreparedQueryHKT> {
+		function select(
+			fields?: SelectedFields,
+		): MySqlSelectBuilder<SelectedFields, TPreparedQueryHKT> | MySqlSelectBuilder<undefined, TPreparedQueryHKT> {
 			return new MySqlSelectBuilder({
-				fields: fields ?? undefined,
+				fields: fields ?? undefined as any,
 				session: self.session,
 				dialect: self.dialect,
 				withList: queries,
@@ -115,9 +117,9 @@ export class MySqlDatabase<
 		): MySqlSelectBuilder<TSelection, TPreparedQueryHKT>;
 		function selectDistinct(
 			fields?: SelectedFields,
-		): MySqlSelectBuilder<SelectedFields | undefined, TPreparedQueryHKT> {
+		): MySqlSelectBuilder<SelectedFields, TPreparedQueryHKT> | MySqlSelectBuilder<undefined, TPreparedQueryHKT> {
 			return new MySqlSelectBuilder({
-				fields: fields ?? undefined,
+				fields: fields ?? undefined as any,
 				session: self.session,
 				dialect: self.dialect,
 				withList: queries,
@@ -130,17 +132,21 @@ export class MySqlDatabase<
 
 	select(): MySqlSelectBuilder<undefined, TPreparedQueryHKT>;
 	select<TSelection extends SelectedFields>(fields: TSelection): MySqlSelectBuilder<TSelection, TPreparedQueryHKT>;
-	select(fields?: SelectedFields): MySqlSelectBuilder<SelectedFields | undefined, TPreparedQueryHKT> {
-		return new MySqlSelectBuilder({ fields: fields ?? undefined, session: this.session, dialect: this.dialect });
+	select(
+		fields?: SelectedFields,
+	): MySqlSelectBuilder<SelectedFields, TPreparedQueryHKT> | MySqlSelectBuilder<undefined, TPreparedQueryHKT> {
+		return new MySqlSelectBuilder({ fields: fields ?? undefined as any, session: this.session, dialect: this.dialect });
 	}
 
 	selectDistinct(): MySqlSelectBuilder<undefined, TPreparedQueryHKT>;
 	selectDistinct<TSelection extends SelectedFields>(
 		fields: TSelection,
-	): MySqlSelectBuilder<TSelection, TPreparedQueryHKT>;
-	selectDistinct(fields?: SelectedFields): MySqlSelectBuilder<SelectedFields | undefined, TPreparedQueryHKT> {
+	): MySqlSelectBuilder<SelectedFields, TPreparedQueryHKT>;
+	selectDistinct(
+		fields?: SelectedFields,
+	): MySqlSelectBuilder<SelectedFields, TPreparedQueryHKT> | MySqlSelectBuilder<undefined, TPreparedQueryHKT> {
 		return new MySqlSelectBuilder({
-			fields: fields ?? undefined,
+			fields: fields ?? undefined as any,
 			session: this.session,
 			dialect: this.dialect,
 			distinct: true,
