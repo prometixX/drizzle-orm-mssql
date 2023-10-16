@@ -2,6 +2,8 @@ import { entityKind } from '~/entity.ts';
 import {
 	applyMixins,
 	haveSameKeys,
+	IsLazilyNamedTable,
+	LazyTableAliasProxyHandler,
 	orderSelectedFields,
 	type Placeholder,
 	type Query,
@@ -26,9 +28,11 @@ import type {
 	SetOperator,
 } from '~/query-builders/select.types.ts';
 import type { ColumnsSelection } from '~/view.ts';
-import type { MySqlColumn } from '../columns/common.ts';
+import type { MySqlColumn, MySqlColumnBuilderBase } from '../columns/common.ts';
+import { customType } from '../columns/custom.ts';
 import type { MySqlDialect } from '../dialect.ts';
-import { MySqlSelfReferenceSQ, type SubqueryWithSelection } from '../subquery.ts';
+import type { SubqueryWithSelection } from '../subquery.ts';
+import { mysqlTable, type SelfReferenceTable } from '../table.ts';
 import type {
 	MySqlCreateSetOperatorFn,
 	MySqlSelectHKTBase,
@@ -115,7 +119,7 @@ export abstract class MySqlSetOperatorBuilder<
 		rightSelect:
 			| ((
 				setOperator: MySqlSetOperators,
-				leftFields: MySqlSelfReferenceSQ & TSelection,
+				leftFields: SelfReferenceTable<TSelection>,
 			) => SetOperatorRightSelect<TValue, TResult>)
 			| SetOperatorRightSelect<TValue, TResult>,
 	) => MySqlSetOperatorBase<
@@ -130,12 +134,24 @@ export abstract class MySqlSetOperatorBuilder<
 		TSelectedFields
 	> {
 		return (rightSelect) => {
-			const selftReferenceTable = MySqlSelfReferenceSQ.create(this.config.fields);
+			const columns = {} as Record<keyof TSelection, MySqlColumnBuilderBase>;
+			for (const key of Object.keys(this.config.fields)) {
+				columns[key as keyof TSelection] = customType<
+					{ data: TSelection[typeof key] }
+				>({
+					dataType() {
+						return '';
+					},
+				})(key);
+			}
+
+			const ttable = mysqlTable('', columns);
+
+			ttable[IsLazilyNamedTable] = true;
+			const aliased = new Proxy(ttable, new LazyTableAliasProxyHandler());
+
 			const rightSelectOrig = typeof rightSelect === 'function'
-				? rightSelect(
-					getMySqlSetOperators(),
-					selftReferenceTable as any,
-				)
+				? rightSelect(getMySqlSetOperators(), aliased as any)
 				: rightSelect;
 			return new MySqlSetOperatorBase(type, isAll, this as any, rightSelectOrig as any);
 		};
@@ -260,7 +276,6 @@ export class MySqlSetOperatorBase<
 		};
 	}
 
-	// Updated upstream
 	orderBy(
 		...columns:
 			| [(aliases: TSelection) => ValueOrArray<MySqlColumn | SQL | SQL.Aliased>]
@@ -290,8 +305,6 @@ export class MySqlSetOperatorBase<
 		return this as any;
 	}
 
-	//
-	// Stashed changes
 	/** @internal */ override getSQL(): SQL<unknown> {
 		return this.dialect.buildSetOperationQuery(this.config);
 	}
@@ -315,7 +328,7 @@ export class MySqlSetOperatorBase<
 			TPreparedQueryHKT,
 			PreparedQueryConfig & {
 				execute: TResult;
-				iterator: SelectResult<TSelection, TSelectMode, TNullabilityMap>;
+				iterator: TResult[number];
 			},
 			true
 		>;

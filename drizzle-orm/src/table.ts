@@ -1,7 +1,7 @@
 import type { Column, GetColumnData } from './column.ts';
 import { entityKind } from './entity.ts';
 import type { OptionalKeyOnly, RequiredKeyOnly } from './operations.ts';
-import type { SQLWrapper } from './sql/sql.ts';
+import { SQL, type SQLWrapper } from './sql/index.ts';
 import type { Simplify, Update } from './utils.ts';
 
 export interface TableConfig<TColumn extends Column = Column<any>> {
@@ -36,14 +36,10 @@ export const IsAlias = Symbol.for('drizzle:IsAlias');
 /** @internal */
 export const ExtraConfigBuilder = Symbol.for('drizzle:ExtraConfigBuilder');
 
-const IsDrizzleTable = Symbol.for('drizzle:IsDrizzleTable');
+/** @internal */
+export const IsLazilyNamedTable = Symbol.for('drizzle:IsLazyNamedTable');
 
-export interface Table<
-	// eslint-disable-next-line @typescript-eslint/no-unused-vars
-	T extends TableConfig = TableConfig,
-> extends SQLWrapper {
-	// SQLWrapper runtime implementation is defined in 'sql/sql.ts'
-}
+const IsDrizzleTable = Symbol.for('drizzle:IsDrizzleTable');
 
 export class Table<T extends TableConfig = TableConfig> implements SQLWrapper {
 	static readonly [entityKind]: string = 'Table';
@@ -90,6 +86,9 @@ export class Table<T extends TableConfig = TableConfig> implements SQLWrapper {
 	/** @internal */
 	[Columns]!: T['columns'];
 
+	/** @internal */
+	[IsLazilyNamedTable] = false;
+
 	/**
 	 *  @internal
 	 * Used to store the table name before the transformation via the `tableCreator` functions.
@@ -109,30 +108,17 @@ export class Table<T extends TableConfig = TableConfig> implements SQLWrapper {
 		this[Schema] = schema;
 		this[BaseName] = baseName;
 	}
+
+	getSQL(): SQL<unknown> {
+		return new SQL([this]);
+	}
 }
 
 export function isTable(table: unknown): table is Table {
 	return typeof table === 'object' && table !== null && IsDrizzleTable in table;
 }
 
-/**
- * Any table with a specified boundary.
- *
- * @example
-	```ts
-	// Any table with a specific name
-	type AnyUsersTable = AnyTable<{ name: 'users' }>;
-	```
- *
- * To describe any table with any config, simply use `Table` without any type arguments, like this:
- *
-	```ts
-	function needsTable(table: Table) {
-		...
-	}
-	```
- */
-export type AnyTable<TPartial extends Partial<TableConfig>> = Table<UpdateTableConfig<TableConfig, TPartial>>;
+export type AnyTable<TPartial extends Partial<TableConfig> = {}> = Table<UpdateTableConfig<TableConfig, TPartial>>;
 
 export function getTableName<T extends Table>(table: T): T['_']['name'] {
 	return table[TableName];
@@ -175,7 +161,7 @@ export type InferModelFromColumns<
 		}
 >;
 
-/** @deprecated Use one of the alternatives: {@link InferSelectModel} / {@link InferInsertModel}, or `table.$inferSelect` / `table.$inferInsert`
+/** @deprecated Use one of the alternatives: {@link InferSelectModel} / {@link InferInsertModel}, or `table._.inferSelect` / `table._.inferInsert`
  */
 export type InferModel<
 	TTable extends Table,

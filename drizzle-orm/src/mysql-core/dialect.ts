@@ -19,11 +19,11 @@ import { Subquery, SubqueryConfig } from '~/subquery.ts';
 import { getTableName, Table } from '~/table.ts';
 import { orderSelectedFields, type UpdateSet } from '~/utils.ts';
 import { View } from '~/view.ts';
-import { DrizzleError, type Name, type Placeholder, ViewBaseConfig } from '../index.ts';
+import { DrizzleError, IsLazilyNamedTable, OriginalName, type Placeholder, ViewBaseConfig } from '../index.ts';
 import { MySqlColumn } from './columns/common.ts';
-import { MySqlSelectBase, MySqlSelfReferenceSQ } from './index.ts';
 import type { MySqlDeleteConfig } from './query-builders/delete.ts';
 import type { MySqlInsertConfig } from './query-builders/insert.ts';
+import { MySqlSelectBase } from './query-builders/select.ts';
 import type {
 	MySqlSelectConfig,
 	MySqlSelectJoinConfig,
@@ -437,8 +437,11 @@ export class MySqlDialect {
 		if (is(rightSelect, MySqlSelectBase)) {
 			const rightSelectTable = rightSelect.getTable();
 
-			if (is(rightSelectTable, MySqlSelfReferenceSQ)) {
-				rightSelectTable.setName(selfReferenceName!);
+			if (is(rightSelectTable, Table) && rightSelectTable[IsLazilyNamedTable]) {
+				if (!selfReferenceName) {
+					throw new Error('You attempted to use a self reference table outsite a "with recursive" clause');
+				}
+				rightSelectTable[OriginalName] = selfReferenceName;
 			}
 		}
 
@@ -447,19 +450,19 @@ export class MySqlDialect {
 
 		let orderBySql;
 		if (orderBy && orderBy.length > 0) {
-			const orderByValues: (SQL<unknown> | Name)[] = [];
+			const orderByValues: SQL<unknown>[] = [];
 
 			// The next bit is necessary because the sql operator replaces ${table.column} with `table`.`column`
 			// which is invalid MySql syntax, Table from one of the SELECTs cannot be used in global ORDER clause
 			for (const orderByUnit of orderBy) {
 				if (is(orderByUnit, MySqlColumn)) {
-					orderByValues.push(sql.identifier(orderByUnit.name));
+					orderByValues.push(sql.raw(orderByUnit.name));
 				} else if (is(orderByUnit, SQL)) {
 					for (let i = 0; i < orderByUnit.queryChunks.length; i++) {
 						const chunk = orderByUnit.queryChunks[i];
 
 						if (is(chunk, MySqlColumn)) {
-							orderByUnit.queryChunks[i] = sql.identifier(chunk.name);
+							orderByUnit.queryChunks[i] = sql.raw(chunk.name);
 						}
 					}
 

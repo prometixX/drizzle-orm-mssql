@@ -1,13 +1,6 @@
 import { entityKind, is } from '~/entity.ts';
 import { Relation } from '~/relations.ts';
-import {
-	SelfReferenceAlias,
-	SelfReferenceName,
-	SelfReferenceSQ,
-	SelfReferenceSQColumn,
-	Subquery,
-	SubqueryConfig,
-} from '~/subquery.ts';
+import { Subquery, SubqueryConfig } from '~/subquery.ts';
 import { tracer } from '~/tracing.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import { View } from '~/view.ts';
@@ -201,24 +194,6 @@ export class SQL<T = unknown> implements SQLWrapper {
 					sql: schemaName === undefined
 						? escapeName(viewName)
 						: escapeName(schemaName) + '.' + escapeName(viewName),
-					params: [],
-				};
-			}
-
-			if (is(chunk, SelfReferenceSQ)) {
-				const name = chunk[SelfReferenceName];
-				if (!name) {
-					throw new Error('You attempted to use a self reference table subquery outside a "with recursive" clause.');
-				}
-				return {
-					sql: escapeName(name) + ' as ' + escapeName(chunk[SelfReferenceAlias]),
-					params: [],
-				};
-			}
-
-			if (is(chunk, SelfReferenceSQColumn)) {
-				return {
-					sql: escapeName(chunk.parent[SelfReferenceAlias]) + '.' + escapeName(chunk.name),
 					params: [],
 				};
 			}

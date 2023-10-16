@@ -257,6 +257,7 @@ export class MySqlSelectOnly<
 				session: this.session,
 				dialect: this.dialect,
 				withList: this.config.withList,
+				withRecursive: this.config.withRecursive,
 				distinct: this.config.distinct,
 			},
 		) as any;
