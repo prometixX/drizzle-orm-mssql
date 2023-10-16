@@ -2,6 +2,7 @@ import { ColumnAliasProxyHandler, TableAliasProxyHandler } from './alias.ts';
 import { Column } from './column.ts';
 import { entityKind, is } from './entity.ts';
 import { SQL, type SQLWrapper } from './sql/index.ts';
+import type { Table } from './table.ts';
 import { ViewBaseConfig } from './view-common.ts';
 import { type ColumnsSelection, View } from './view.ts';
 
@@ -155,4 +156,36 @@ export class SelectionProxyHandler<T extends Subquery | Record<string, unknown> 
 
 		return new Proxy(value, new SelectionProxyHandler(this.config));
 	}
+}
+
+export const SelfReferenceName = Symbol.for('drizzle:SelfReferenceName');
+
+export const SelfReferenceAlias = Symbol.for('drizzle:SelfReferenceAlias');
+
+export abstract class SelfReferenceSQ {
+	static readonly [entityKind]: string = 'SelfReferenceSQ';
+
+	/** @internal */
+	[SelfReferenceName]?: string;
+	/** @internal */
+	[SelfReferenceAlias]: string = 'recursive_self_reference';
+
+	/** @internal */
+	setName(name: string) {
+		this[SelfReferenceName] = name;
+	}
+
+	/** @internal */
+	setAlias(alias: string) {
+		this[SelfReferenceAlias] = alias;
+	}
+
+	abstract as<TAlias extends string>(alias: TAlias): Table;
+}
+
+/** @internal */
+export class SelfReferenceSQColumn {
+	static readonly [entityKind]: string = 'SelfReferenceSQColumn';
+
+	constructor(public name: string, public parent: SelfReferenceSQ) {}
 }

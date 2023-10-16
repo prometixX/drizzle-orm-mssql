@@ -1,5 +1,5 @@
 import type { ResultSetHeader } from 'mysql2/promise';
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type { ExtractTablesWithRelations, RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
 import type { SQLWrapper } from '~/sql/index.ts';
@@ -11,6 +11,8 @@ import {
 	MySqlDeleteBase,
 	MySqlInsertBuilder,
 	MySqlSelectBuilder,
+	MySqlSelectOnly,
+	MySqlSetOperatorBase,
 	MySqlUpdateBuilder,
 	QueryBuilder,
 } from './query-builders/index.ts';
@@ -85,6 +87,10 @@ export class MySqlDatabase<
 					qb = qb(new QueryBuilder());
 				}
 
+				if (is(qb, MySqlSetOperatorBase)) {
+					qb.setSelfReferenceName(alias);
+				}
+
 				return new Proxy(
 					new WithSubquery(qb.getSQL(), qb.getSelectedFields() as SelectedFields, alias, true),
 					new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
@@ -99,52 +105,142 @@ export class MySqlDatabase<
 		function select(): MySqlSelectBuilder<undefined, TPreparedQueryHKT>;
 		function select<TSelection extends SelectedFields>(
 			fields: TSelection,
-		): MySqlSelectBuilder<TSelection, TPreparedQueryHKT>;
-		function select(fields?: SelectedFields): MySqlSelectBuilder<SelectedFields | undefined, TPreparedQueryHKT> {
-			return new MySqlSelectBuilder({
-				fields: fields ?? undefined,
-				session: self.session,
-				dialect: self.dialect,
-				withList: queries,
-			});
+		): MySqlSelectOnly<undefined, TSelection, TPreparedQueryHKT>;
+		function select(
+			fields?: SelectedFields,
+		):
+			| MySqlSelectOnly<undefined, SelectedFields, TPreparedQueryHKT>
+			| MySqlSelectBuilder<undefined, TPreparedQueryHKT>
+		{
+			return fields
+				? new MySqlSelectOnly({ fields: fields, session: self.session, dialect: self.dialect, withList: queries })
+				: new MySqlSelectBuilder({
+					fields: fields ?? undefined as any,
+					session: self.session,
+					dialect: self.dialect,
+					withList: queries,
+				});
 		}
 
 		function selectDistinct(): MySqlSelectBuilder<undefined, TPreparedQueryHKT>;
 		function selectDistinct<TSelection extends SelectedFields>(
 			fields: TSelection,
-		): MySqlSelectBuilder<TSelection, TPreparedQueryHKT>;
+		): MySqlSelectOnly<undefined, TSelection, TPreparedQueryHKT>;
 		function selectDistinct(
 			fields?: SelectedFields,
-		): MySqlSelectBuilder<SelectedFields | undefined, TPreparedQueryHKT> {
-			return new MySqlSelectBuilder({
-				fields: fields ?? undefined,
-				session: self.session,
-				dialect: self.dialect,
-				withList: queries,
-				distinct: true,
-			});
+		):
+			| MySqlSelectOnly<undefined, SelectedFields, TPreparedQueryHKT>
+			| MySqlSelectBuilder<undefined, TPreparedQueryHKT>
+		{
+			return fields
+				? new MySqlSelectOnly({
+					fields: fields,
+					session: self.session,
+					dialect: self.dialect,
+					withList: queries,
+					distinct: true,
+				})
+				: new MySqlSelectBuilder({
+					fields: fields ?? undefined as any,
+					session: self.session,
+					dialect: self.dialect,
+					withList: queries,
+					distinct: true,
+				});
+		}
+
+		return { select, selectDistinct };
+	}
+
+	withRecursive(query: WithSubquery) {
+		const self = this;
+
+		function select(): MySqlSelectBuilder<undefined, TPreparedQueryHKT>;
+		function select<TSelection extends SelectedFields>(
+			fields: TSelection,
+		): MySqlSelectOnly<undefined, TSelection, TPreparedQueryHKT>;
+		function select(
+			fields?: SelectedFields,
+		):
+			| MySqlSelectOnly<undefined, SelectedFields, TPreparedQueryHKT>
+			| MySqlSelectBuilder<undefined, TPreparedQueryHKT>
+		{
+			return fields
+				? new MySqlSelectOnly({ fields: fields, session: self.session, dialect: self.dialect, withRecursive: query })
+				: new MySqlSelectBuilder({
+					fields: fields ?? undefined as any,
+					session: self.session,
+					dialect: self.dialect,
+					withRecursive: query,
+				});
+		}
+
+		function selectDistinct(): MySqlSelectBuilder<undefined, TPreparedQueryHKT>;
+		function selectDistinct<TSelection extends SelectedFields>(
+			fields: TSelection,
+		): MySqlSelectOnly<undefined, TSelection, TPreparedQueryHKT>;
+		function selectDistinct(
+			fields?: SelectedFields,
+		):
+			| MySqlSelectOnly<undefined, SelectedFields, TPreparedQueryHKT>
+			| MySqlSelectBuilder<undefined, TPreparedQueryHKT>
+		{
+			return fields
+				? new MySqlSelectOnly({
+					fields: fields,
+					session: self.session,
+					dialect: self.dialect,
+					withRecursive: query,
+					distinct: true,
+				})
+				: new MySqlSelectBuilder({
+					fields: fields ?? undefined as any,
+					session: self.session,
+					dialect: self.dialect,
+					withRecursive: query,
+					distinct: true,
+				});
 		}
 
 		return { select, selectDistinct };
 	}
 
 	select(): MySqlSelectBuilder<undefined, TPreparedQueryHKT>;
-	select<TSelection extends SelectedFields>(fields: TSelection): MySqlSelectBuilder<TSelection, TPreparedQueryHKT>;
-	select(fields?: SelectedFields): MySqlSelectBuilder<SelectedFields | undefined, TPreparedQueryHKT> {
-		return new MySqlSelectBuilder({ fields: fields ?? undefined, session: this.session, dialect: this.dialect });
+	select<TSelection extends SelectedFields>(
+		fields: TSelection,
+	): MySqlSelectOnly<undefined, TSelection, TPreparedQueryHKT>;
+	select(
+		fields?: SelectedFields,
+	): MySqlSelectOnly<undefined, SelectedFields, TPreparedQueryHKT> | MySqlSelectBuilder<undefined, TPreparedQueryHKT> {
+		return fields
+			? new MySqlSelectOnly({
+				fields: fields,
+				session: this.session,
+				dialect: this.dialect,
+			})
+			: new MySqlSelectBuilder({ fields: fields ?? undefined as any, session: this.session, dialect: this.dialect });
 	}
 
 	selectDistinct(): MySqlSelectBuilder<undefined, TPreparedQueryHKT>;
 	selectDistinct<TSelection extends SelectedFields>(
 		fields: TSelection,
-	): MySqlSelectBuilder<TSelection, TPreparedQueryHKT>;
-	selectDistinct(fields?: SelectedFields): MySqlSelectBuilder<SelectedFields | undefined, TPreparedQueryHKT> {
-		return new MySqlSelectBuilder({
-			fields: fields ?? undefined,
-			session: this.session,
-			dialect: this.dialect,
-			distinct: true,
-		});
+	): MySqlSelectOnly<undefined, TSelection, TPreparedQueryHKT>;
+	selectDistinct(
+		fields?: SelectedFields,
+	): MySqlSelectOnly<undefined, SelectedFields, TPreparedQueryHKT> | MySqlSelectBuilder<undefined, TPreparedQueryHKT> {
+		return fields
+			? new MySqlSelectOnly({
+				fields: fields,
+				session: this.session,
+				dialect: this.dialect,
+				distinct: true,
+			})
+			: new MySqlSelectBuilder({
+				fields: fields ?? undefined as any,
+				session: this.session,
+				dialect: this.dialect,
+				distinct: true,
+			});
 	}
 
 	update<TTable extends MySqlTable>(table: TTable): MySqlUpdateBuilder<TTable, TQueryResult, TPreparedQueryHKT> {

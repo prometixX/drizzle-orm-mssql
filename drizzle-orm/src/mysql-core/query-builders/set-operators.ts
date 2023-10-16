@@ -28,7 +28,7 @@ import type {
 import type { ColumnsSelection } from '~/view.ts';
 import type { MySqlColumn } from '../columns/common.ts';
 import type { MySqlDialect } from '../dialect.ts';
-import type { SubqueryWithSelection } from '../subquery.ts';
+import { MySqlSelfReferenceSQ, type SubqueryWithSelection } from '../subquery.ts';
 import type {
 	MySqlCreateSetOperatorFn,
 	MySqlSelectHKTBase,
@@ -87,9 +87,10 @@ export abstract class MySqlSetOperatorBuilder<
 		limit?: number | Placeholder;
 		orderBy?: (MySqlColumn | SQL | SQL.Aliased)[];
 		offset?: number | Placeholder;
+		selfReferenceName?: string;
 	};
 	/* @internal */
-	abstract readonly session: MySqlSession | undefined;
+	abstract readonly session?: MySqlSession | undefined;
 	protected abstract dialect: MySqlDialect;
 
 	/** @internal */
@@ -102,12 +103,20 @@ export abstract class MySqlSetOperatorBuilder<
 		};
 	}
 
+	/** @internal */
+	setSelfReferenceName(name: string) {
+		this.config.selfReferenceName = name;
+	}
+
 	private createSetOperator(
 		type: SetOperator,
 		isAll: boolean,
 	): <TValue extends MySqlSetOperatorBaseWithResult<TResult>>(
 		rightSelect:
-			| ((setOperator: MySqlSetOperators) => SetOperatorRightSelect<TValue, TResult>)
+			| ((
+				setOperator: MySqlSetOperators,
+				leftFields: MySqlSelfReferenceSQ & TSelection,
+			) => SetOperatorRightSelect<TValue, TResult>)
 			| SetOperatorRightSelect<TValue, TResult>,
 	) => MySqlSetOperatorBase<
 		TTableName,
@@ -121,7 +130,13 @@ export abstract class MySqlSetOperatorBuilder<
 		TSelectedFields
 	> {
 		return (rightSelect) => {
-			const rightSelectOrig = typeof rightSelect === 'function' ? rightSelect(getMySqlSetOperators()) : rightSelect;
+			const selftReferenceTable = MySqlSelfReferenceSQ.create(this.config.fields);
+			const rightSelectOrig = typeof rightSelect === 'function'
+				? rightSelect(
+					getMySqlSetOperators(),
+					selftReferenceTable as any,
+				)
+				: rightSelect;
 			return new MySqlSetOperatorBase(type, isAll, this as any, rightSelectOrig as any);
 		};
 	}
@@ -245,6 +260,7 @@ export class MySqlSetOperatorBase<
 		};
 	}
 
+	// Updated upstream
 	orderBy(
 		...columns:
 			| [(aliases: TSelection) => ValueOrArray<MySqlColumn | SQL | SQL.Aliased>]
@@ -274,8 +290,9 @@ export class MySqlSetOperatorBase<
 		return this as any;
 	}
 
-	/** @internal */
-	override getSQL(): SQL<unknown> {
+	//
+	// Stashed changes
+	/** @internal */ override getSQL(): SQL<unknown> {
 		return this.dialect.buildSetOperationQuery(this.config);
 	}
 
@@ -311,7 +328,6 @@ export class MySqlSetOperatorBase<
 	private createIterator = (): ReturnType<this['prepare']>['iterator'] => {
 		const self = this;
 		return async function*(placeholderValues) {
-			console.log('placeholderValues', placeholderValues);
 			yield* self.prepare().iterator(placeholderValues);
 		};
 	};

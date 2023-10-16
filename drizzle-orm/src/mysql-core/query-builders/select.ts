@@ -1,4 +1,5 @@
 import { entityKind, is } from '~/entity.ts';
+import type { ColumnBaseConfig, ColumnDataType } from '~/index.ts';
 import type { MySqlColumn } from '~/mysql-core/columns/index.ts';
 import type { MySqlDialect } from '~/mysql-core/dialect.ts';
 import type { MySqlSession, PreparedQueryConfig, PreparedQueryHKTBase } from '~/mysql-core/session.ts';
@@ -15,7 +16,7 @@ import type {
 	SelectResult,
 } from '~/query-builders/select.types.ts';
 import { QueryPromise } from '~/query-promise.ts';
-import { type Query, SQL } from '~/sql/index.ts';
+import { type Placeholder, type Query, SQL } from '~/sql/index.ts';
 import { SelectionProxyHandler, Subquery, SubqueryConfig } from '~/subquery.ts';
 import { Table } from '~/table.ts';
 import { applyMixins, getTableColumns, getTableLikeName, type ValueOrArray } from '~/utils.ts';
@@ -31,6 +32,8 @@ import type {
 	MySqlSelectDynamic,
 	MySqlSelectHKT,
 	MySqlSelectHKTBase,
+	MySqlSelectOnlyDynamic,
+	MySqlSelectOnlyWithout,
 	MySqlSelectPrepare,
 	MySqlSelectWithout,
 	SelectedFields,
@@ -48,6 +51,7 @@ export class MySqlSelectBuilder<
 	private session: MySqlSession | undefined;
 	private dialect: MySqlDialect;
 	private withList: Subquery[] = [];
+	private withRecursive?: Subquery | undefined;
 	private distinct: boolean | undefined;
 
 	constructor(
@@ -56,6 +60,7 @@ export class MySqlSelectBuilder<
 			session: MySqlSession | undefined;
 			dialect: MySqlDialect;
 			withList?: Subquery[];
+			withRecursive?: Subquery;
 			distinct?: boolean;
 		},
 	) {
@@ -66,6 +71,7 @@ export class MySqlSelectBuilder<
 			this.withList = config.withList;
 		}
 		this.distinct = config.distinct;
+		this.withRecursive = config.withRecursive;
 	}
 
 	from<TFrom extends MySqlTable | Subquery | MySqlViewBase | SQL>(
@@ -105,9 +111,231 @@ export class MySqlSelectBuilder<
 				session: this.session,
 				dialect: this.dialect,
 				withList: this.withList,
+				withRecursive: this.withRecursive,
 				distinct: this.distinct,
 			},
 		) as any;
+	}
+}
+
+export interface MySqlSelectOnly<
+	TTableName extends string | undefined,
+	TSelection extends ColumnsSelection,
+	TPreparedQueryHKT extends PreparedQueryHKTBase,
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
+	TBuilderMode extends 'db' | 'qb' = 'db',
+	TDynamic extends boolean = false,
+	TExcludedMethods extends string = never,
+	TResult extends any[] = SelectResult<TSelection, 'partial', {}>[],
+	TSelectedFields extends ColumnsSelection = BuildSubquerySelection<TSelection, {}>,
+> extends
+	MySqlSetOperatorBuilder<
+		MySqlSelectHKTBase,
+		TTableName,
+		TSelection,
+		'partial',
+		TPreparedQueryHKT,
+		{},
+		TDynamic,
+		TExcludedMethods,
+		TResult,
+		TSelectedFields
+	>,
+	QueryPromise<TResult>
+{}
+
+export class MySqlSelectOnly<
+	TTableName extends string | undefined,
+	TSelection extends ColumnsSelection,
+	TPreparedQueryHKT extends PreparedQueryHKTBase,
+	TBuilderMode extends 'db' | 'qb' = 'db',
+	TDynamic extends boolean = false,
+	TExcludedMethods extends string = never,
+	TResult extends any[] = SelectResult<TSelection, 'partial', {}>[],
+	TSelectedFields extends ColumnsSelection = BuildSubquerySelection<TSelection, {}>,
+> extends MySqlSetOperatorBuilder<
+	MySqlSelectHKTBase,
+	TTableName,
+	TSelection,
+	'partial',
+	TPreparedQueryHKT,
+	{},
+	TDynamic,
+	TExcludedMethods,
+	TResult,
+	TSelectedFields
+> {
+	static readonly [entityKind]: string = 'MySqlSelectOnly';
+	readonly _: {
+		readonly hkt: MySqlSelectHKTBase;
+		readonly tableName: TTableName;
+		readonly selection: TSelection;
+		readonly builderMode: TBuilderMode;
+		readonly selectMode: 'partial';
+		readonly preparedQueryHKT: TPreparedQueryHKT;
+		readonly nullabilityMap: {};
+		readonly dynamic: TDynamic;
+		readonly excludedMethods: TExcludedMethods;
+		readonly result: TResult;
+		readonly selectedFields: TSelectedFields;
+	};
+	protected override joinsNotNullableMap: Record<string, boolean>;
+	protected override config: {
+		fields: Record<string, unknown>;
+		limit?: number | Placeholder<string, any> | undefined;
+		orderBy?:
+			| (SQL<unknown> | SQL.Aliased<unknown> | MySqlColumn<ColumnBaseConfig<ColumnDataType, string>, object>)[]
+			| undefined;
+		offset?: number | Placeholder<string, any> | undefined;
+		withRecursive?: Subquery;
+		withList: Subquery[];
+		distinct: boolean | undefined;
+	};
+	session?: MySqlSession;
+
+	protected override dialect: MySqlDialect;
+
+	constructor(
+		{ fields, session, dialect, withList, distinct, withRecursive }: {
+			fields: MySqlSelectConfig['fields'];
+			session: MySqlSession | undefined;
+			dialect: MySqlDialect;
+			withList?: Subquery[];
+			withRecursive?: Subquery;
+			distinct?: boolean | undefined;
+		},
+	) {
+		super();
+		this.config = {
+			withList: withList ?? [],
+			withRecursive,
+			fields: { ...fields },
+			distinct,
+		};
+		this.session = session;
+		this.dialect = dialect;
+		this._ = {
+			selectedFields: fields,
+		} as this['_'];
+		this.joinsNotNullableMap = {};
+	}
+
+	from = <TFrom extends MySqlTable | Subquery | MySqlViewBase | SQL>(
+		source: TFrom,
+	): CreateMySqlSelectFromBuilderMode<
+		TBuilderMode,
+		GetSelectTableName<TFrom>,
+		TSelection extends undefined ? GetSelectTableSelection<TFrom> : TSelection,
+		TSelection extends undefined ? 'single' : 'partial',
+		TPreparedQueryHKT
+	> => {
+		const isPartialSelect = true;
+
+		let fields: SelectedFields;
+		if (this.config.fields) {
+			fields = this.config.fields as any;
+		} else if (is(source, Subquery)) {
+			// This is required to use the proxy handler to get the correct field values from the subquery
+			fields = Object.fromEntries(
+				Object.keys(source[SubqueryConfig].selection).map((
+					key,
+				) => [key, source[key as unknown as keyof typeof source] as unknown as SelectedFields[string]]),
+			);
+		} else if (is(source, MySqlViewBase)) {
+			fields = source[ViewBaseConfig].selectedFields as SelectedFields;
+		} else if (is(source, SQL)) {
+			fields = {};
+		} else {
+			fields = getTableColumns<MySqlTable>(source);
+		}
+
+		return new MySqlSelectBase(
+			{
+				table: source,
+				fields,
+				isPartialSelect,
+				session: this.session,
+				dialect: this.dialect,
+				withList: this.config.withList,
+				distinct: this.config.distinct,
+			},
+		) as any;
+	};
+
+	orderBy(
+		...columns:
+			| [(aliases: TSelection) => ValueOrArray<SQL | SQL.Aliased>]
+			| (SQL | SQL.Aliased)[]
+	): MySqlSelectOnlyWithout<this, TDynamic, 'orderBy'> {
+		if (typeof columns[0] === 'function') {
+			const orderBy = columns[0](
+				new Proxy(
+					this.config.fields,
+					new SelectionProxyHandler({ sqlAliasedBehavior: 'alias', sqlBehavior: 'sql' }),
+				) as TSelection,
+			);
+			this.config.orderBy = Array.isArray(orderBy) ? orderBy : [orderBy];
+		} else {
+			this.config.orderBy = columns as (SQL | SQL.Aliased)[];
+		}
+		return this as any;
+	}
+
+	limit(limit: number): MySqlSelectOnlyWithout<this, TDynamic, 'limit'> {
+		this.config.limit = limit;
+		return this as any;
+	}
+
+	offset(offset: number | Placeholder): MySqlSelectOnlyWithout<this, TDynamic, 'offset'> {
+		this.config.offset = offset;
+		return this as any;
+	}
+
+	override getSQL(): SQL<unknown> {
+		return this.dialect.buildSelectOnlyQuery(this.config);
+	}
+	toSQL(): Query {
+		const { typings: _typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
+		return rest;
+	}
+
+	prepare(): MySqlSelectPrepare<this> {
+		if (!this.session) {
+			throw new Error('Cannot execute a query on a query builder. Please use a database instance instead.');
+		}
+		const fieldsList = orderSelectedFields<MySqlColumn>(this.config.fields);
+		const query = this.session.prepareQuery<
+			PreparedQueryConfig & { execute: TResult },
+			TPreparedQueryHKT
+		>(this.dialect.sqlToQuery(this.getSQL()), fieldsList);
+		query.joinsNotNullableMap = this.joinsNotNullableMap;
+		return query as MySqlSelectPrepare<this>;
+	}
+
+	execute = ((placeholderValues) => {
+		return this.prepare().execute(placeholderValues);
+	}) as ReturnType<this['prepare']>['execute'];
+
+	private createIterator = (): ReturnType<this['prepare']>['iterator'] => {
+		const self = this;
+		return async function*(placeholderValues) {
+			yield* self.prepare().iterator(placeholderValues);
+		};
+	};
+
+	iterator = this.createIterator();
+
+	as<TAlias extends string>(
+		alias: TAlias,
+	): SubqueryWithSelection<TSelectedFields, TAlias> {
+		return new Proxy(
+			new Subquery(this.getSQL(), this.config.fields, alias),
+			new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
+		) as any;
+	}
+
+	$dynamic(): MySqlSelectOnlyDynamic<this> {
+		return this as any;
 	}
 }
 
@@ -159,19 +387,21 @@ export abstract class MySqlSelectQueryBuilderBase<
 	protected dialect: MySqlDialect;
 
 	constructor(
-		{ table, fields, isPartialSelect, session, dialect, withList, distinct }: {
+		{ table, fields, isPartialSelect, session, dialect, withList, distinct, withRecursive }: {
 			table: MySqlSelectConfig['table'];
 			fields: MySqlSelectConfig['fields'];
 			isPartialSelect: boolean;
 			session: MySqlSession | undefined;
 			dialect: MySqlDialect;
 			withList: Subquery[];
+			withRecursive?: Subquery;
 			distinct: boolean | undefined;
 		},
 	) {
 		super();
 		this.config = {
 			withList,
+			withRecursive,
 			table,
 			fields: { ...fields },
 			distinct,
@@ -184,6 +414,11 @@ export abstract class MySqlSelectQueryBuilderBase<
 		} as this['_'];
 		this.tableName = getTableLikeName(table);
 		this.joinsNotNullableMap = typeof this.tableName === 'string' ? { [this.tableName]: true } : {};
+	}
+
+	/** @internal */
+	getTable() {
+		return this.config.table;
 	}
 
 	private createJoin<TJoinType extends JoinType>(
@@ -474,3 +709,4 @@ export class MySqlSelectBase<
 }
 
 applyMixins(MySqlSelectBase, [QueryPromise]);
+applyMixins(MySqlSelectOnly, [QueryPromise]);

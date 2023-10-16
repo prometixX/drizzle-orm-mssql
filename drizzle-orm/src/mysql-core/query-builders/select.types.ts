@@ -25,7 +25,7 @@ import type { Table, UpdateTableConfig } from '~/table.ts';
 import type { Assume, ValidateShape } from '~/utils.ts';
 import type { ColumnsSelection, View } from '~/view.ts';
 import type { PreparedQueryConfig, PreparedQueryHKTBase, PreparedQueryKind } from '../session.ts';
-import type { MySqlSelectBase, MySqlSelectQueryBuilderBase } from './select.ts';
+import type { MySqlSelectBase, MySqlSelectOnly, MySqlSelectQueryBuilderBase } from './select.ts';
 import type { MySqlSetOperatorBase, MySqlSetOperatorBuilder } from './set-operators.ts';
 
 export interface MySqlSelectJoinConfig {
@@ -62,6 +62,7 @@ export interface MySqlSelectConfig {
 	joins?: MySqlSelectJoinConfig[];
 	orderBy?: (MySqlColumn | SQL | SQL.Aliased)[];
 	groupBy?: (MySqlColumn | SQL | SQL.Aliased)[];
+	withRecursive?: Subquery;
 	lockingClause?: {
 		strength: LockStrength;
 		config: LockConfig;
@@ -214,7 +215,7 @@ export type MySqlSelectWithout<
 	T['_']['excludedMethods'] | K
 >;
 
-export type MySqlSelectPrepare<T extends AnyMySqlSelect> = PreparedQueryKind<
+export type MySqlSelectPrepare<T extends AnyMySqlSelect | AnyMySqlSelectOnly> = PreparedQueryKind<
 	T['_']['preparedQueryHKT'],
 	PreparedQueryConfig & {
 		execute: T['_']['result'];
@@ -327,6 +328,7 @@ export interface MySqlSetOperationConfig {
 	limit?: number | Placeholder;
 	orderBy?: (MySqlColumn | SQL | SQL.Aliased)[];
 	offset?: number | Placeholder;
+	selfReferenceName?: string;
 }
 
 export interface MySqlSetOperatorInterface<
@@ -481,6 +483,47 @@ export type MySqlSetOperatorDynamic<T extends AnyMySqlSetOperatorBuilder> = MySq
 	T['_']['selectMode'],
 	T['_']['preparedQueryHKT'],
 	T['_']['nullabilityMap'],
+	true,
+	never,
+	T['_']['result'],
+	T['_']['selectedFields']
+>;
+
+export type AnyMySqlSelectOnly = MySqlSelectOnly<
+	any,
+	any,
+	any,
+	any,
+	any,
+	any,
+	any,
+	any
+>;
+
+export type MySqlSelectOnlyWithout<
+	T extends AnyMySqlSelectOnly,
+	TDynamic extends boolean,
+	K extends keyof T & string,
+> = TDynamic extends true ? T
+	: Omit<
+		MySqlSelectOnly<
+			T['_']['tableName'],
+			T['_']['selection'],
+			T['_']['preparedQueryHKT'],
+			T['_']['builderMode'],
+			TDynamic,
+			T['_']['excludedMethods'] | K,
+			T['_']['result'],
+			T['_']['selectedFields']
+		>,
+		T['_']['excludedMethods'] | K
+	>;
+
+export type MySqlSelectOnlyDynamic<T extends AnyMySqlSelectOnly> = MySqlSelectOnly<
+	T['_']['tableName'],
+	T['_']['selection'],
+	T['_']['preparedQueryHKT'],
+	T['_']['builderMode'],
 	true,
 	never,
 	T['_']['result'],

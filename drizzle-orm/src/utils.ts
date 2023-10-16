@@ -2,11 +2,12 @@ import type { AnyColumn } from './column.ts';
 import { Column } from './column.ts';
 import { is } from './entity.ts';
 import type { Logger } from './logger.ts';
+import { MySqlSelfReferenceSQ } from './mysql-core/subquery.ts';
 import type { SelectedFieldsOrdered } from './operations.ts';
 import type { TableLike } from './query-builders/select.types.ts';
 import { Param, SQL } from './sql/index.ts';
 import type { DriverValueDecoder } from './sql/index.ts';
-import { Subquery, SubqueryConfig } from './subquery.ts';
+import { SelfReferenceName, Subquery, SubqueryConfig } from './subquery.ts';
 import { getTableName, Table } from './table.ts';
 import { ViewBaseConfig } from './view-common.ts';
 import { View } from './view.ts';
@@ -196,6 +197,8 @@ export function getTableLikeName(table: TableLike): string | undefined {
 		? table[ViewBaseConfig].name
 		: is(table, SQL)
 		? undefined
+		: is(table, MySqlSelfReferenceSQ)
+		? table[SelfReferenceName]
 		: table[Table.Symbol.IsAlias]
 		? table[Table.Symbol.Name]
 		: table[Table.Symbol.BaseName];

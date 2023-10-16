@@ -4,7 +4,7 @@ import type { WithSubqueryWithSelection } from '~/mysql-core/subquery.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import { SelectionProxyHandler, WithSubquery } from '~/subquery.ts';
 import type { ColumnsSelection } from '~/view.ts';
-import { MySqlSelectBuilder } from './select.ts';
+import { MySqlSelectBuilder, MySqlSelectOnly } from './select.ts';
 import type { SelectedFields } from './select.types.ts';
 
 export class QueryBuilder {
@@ -37,10 +37,18 @@ export class QueryBuilder {
 		function select(): MySqlSelectBuilder<undefined, never, 'qb'>;
 		function select<TSelection extends SelectedFields>(
 			fields: TSelection,
-		): MySqlSelectBuilder<TSelection, never, 'qb'>;
+		): MySqlSelectOnly<undefined, TSelection, never, 'qb'>;
 		function select<TSelection extends SelectedFields>(
 			fields?: TSelection,
-		): MySqlSelectBuilder<TSelection | undefined, never, 'qb'> {
+		): MySqlSelectOnly<undefined, TSelection, never, 'qb'> | MySqlSelectBuilder<undefined, never, 'qb'> {
+			if (fields) {
+				return new MySqlSelectOnly({
+					fields,
+					session: undefined,
+					dialect: self.getDialect(),
+					withList: queries,
+				});
+			}
 			return new MySqlSelectBuilder({
 				fields: fields ?? undefined,
 				session: undefined,
@@ -52,10 +60,19 @@ export class QueryBuilder {
 		function selectDistinct(): MySqlSelectBuilder<undefined, never, 'qb'>;
 		function selectDistinct<TSelection extends SelectedFields>(
 			fields: TSelection,
-		): MySqlSelectBuilder<TSelection, never, 'qb'>;
+		): MySqlSelectOnly<undefined, TSelection, never, 'qb'>;
 		function selectDistinct<TSelection extends SelectedFields>(
 			fields?: TSelection,
-		): MySqlSelectBuilder<TSelection | undefined, never, 'qb'> {
+		): MySqlSelectOnly<undefined, TSelection, never, 'qb'> | MySqlSelectBuilder<undefined, never, 'qb'> {
+			if (fields) {
+				return new MySqlSelectOnly({
+					fields,
+					session: undefined,
+					dialect: self.getDialect(),
+					withList: queries,
+					distinct: true,
+				});
+			}
 			return new MySqlSelectBuilder({
 				fields: fields ?? undefined,
 				session: undefined,
@@ -69,20 +86,37 @@ export class QueryBuilder {
 	}
 
 	select(): MySqlSelectBuilder<undefined, never, 'qb'>;
-	select<TSelection extends SelectedFields>(fields: TSelection): MySqlSelectBuilder<TSelection, never, 'qb'>;
+	select<TSelection extends SelectedFields>(fields: TSelection): MySqlSelectOnly<undefined, TSelection, never, 'qb'>;
 	select<TSelection extends SelectedFields>(
 		fields?: TSelection,
-	): MySqlSelectBuilder<TSelection | undefined, never, 'qb'> {
+	): MySqlSelectOnly<undefined, TSelection, never, 'qb'> | MySqlSelectBuilder<undefined, never, 'qb'> {
+		if (fields) {
+			return new MySqlSelectOnly({
+				fields,
+				session: undefined,
+				dialect: this.getDialect(),
+				withList: [],
+			});
+		}
 		return new MySqlSelectBuilder({ fields: fields ?? undefined, session: undefined, dialect: this.getDialect() });
 	}
 
 	selectDistinct(): MySqlSelectBuilder<undefined, never, 'qb'>;
 	selectDistinct<TSelection extends SelectedFields>(
 		fields: TSelection,
-	): MySqlSelectBuilder<TSelection, never, 'qb'>;
+	): MySqlSelectOnly<undefined, TSelection, never, 'qb'>;
 	selectDistinct<TSelection extends SelectedFields>(
 		fields?: TSelection,
-	): MySqlSelectBuilder<TSelection | undefined, never, 'qb'> {
+	): MySqlSelectOnly<undefined, TSelection, never, 'qb'> | MySqlSelectBuilder<undefined, never, 'qb'> {
+		if (fields) {
+			return new MySqlSelectOnly({
+				fields,
+				session: undefined,
+				dialect: this.getDialect(),
+				withList: [],
+				distinct: true,
+			});
+		}
 		return new MySqlSelectBuilder({
 			fields: fields ?? undefined,
 			session: undefined,
