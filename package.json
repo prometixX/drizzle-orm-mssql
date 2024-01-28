@@ -1,6 +1,6 @@
 {
   "name": "drizzle-orm",
-  "version": "0.29.5",
+  "version": "0.29.6",
   "description": "Drizzle ORM package for SQL databases",
   "type": "module",
   "private": true,
@@ -9,7 +9,7 @@
     "b": "pnpm build",
     "test:types": "cd type-tests && tsc",
     "test": "vitest run",
-    "install": "npm build",
+    "install": "npm run build",
     "publish": "(cd dist && npm pack --pack-destination ..) && rm -f package.tgz && mv *.tgz package.tgz"
   },
   "main": "./index.cjs",
