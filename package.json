@@ -8,8 +8,7 @@
     "b": "pnpm build",
     "test:types": "cd type-tests && tsc",
     "test": "vitest run",
-    "pack": "(cd dist && npm pack --pack-destination ..) && rm -f package.tgz && mv *.tgz package.tgz",
-    "publish": "npm publish package.tgz"
+    "pack": "(cd dist && npm pack --pack-destination ..) && rm -f package.tgz && mv *.tgz package.tgz"
   },
   "main": "./index.cjs",
   "module": "./index.js",
