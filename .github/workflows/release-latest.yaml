@@ -72,7 +72,7 @@ jobs:
           version="${{ steps.checks.outputs.version }}"
 
           echo "Publishing ${{ matrix.package }}@$version"
-          npm run publish
+          npm run publish --access public
 
           echo "npm: \`+ ${{ matrix.package }}@$version\`" >> $GITHUB_STEP_SUMMARY
 
