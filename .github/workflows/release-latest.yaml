@@ -43,13 +43,11 @@ jobs:
       - name: Install dependencies
         run: pnpm install
       
-      - name: Build
-        if: steps.checks.outputs.has_new_release == 'true'
+      - name: Build    
         run: |
           pnpm build     
 
-      - name: Pack
-        if: steps.checks.outputs.has_new_release == 'true'
+      - name: Pack        
         working-directory: ${{ matrix.package }}
         shell: bash
         env:
@@ -57,8 +55,7 @@ jobs:
         run: |
           npm run pack
 
-      - name: Run @arethetypeswrong/cli
-        if: steps.checks.outputs.has_new_release == 'true'
+      - name: Run @arethetypeswrong/cli       
         working-directory: ${{ matrix.package }}
         shell: bash
         env:
@@ -66,8 +63,7 @@ jobs:
         run: |
           pnpm attw package.tgz
 
-      - name: Publish
-        if: steps.checks.outputs.has_new_release == 'true'
+      - name: Publish       
         working-directory: ${{ matrix.package }}
         shell: bash
         env:
