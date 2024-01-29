@@ -16,7 +16,8 @@
   "types": "./index.d.ts",
   "sideEffects": false,
   "publishConfig": {
-    "provenance": true
+    "provenance": true,
+    "access": "public"
   },
   "repository": {
     "type": "git",
